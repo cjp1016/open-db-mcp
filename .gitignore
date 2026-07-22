@@ -1,0 +1,24 @@
+# Build artifacts
+build/
+dist/
+*.pyc
+__pycache__/
+
+# Backup files
+*-old*.exe
+*.bak
+config/datasources-oracle.json
+
+# IDE
+.qoder/
+.idea/
+.vscode
+
+# Others
+.venv
+.DS_Store
+.settings
+site/
+
+# JDBC drivers (license restrictions, user must download)
+libs/*.jar
