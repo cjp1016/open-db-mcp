@@ -1,47 +1,33 @@
 {
   "LOCAL_MYSQL": {
-    "driver": "com.mysql.cj.jdbc.Driver",
+    "driver": "mysql",
     "url": "jdbc:mysql://127.0.0.1:3306/test_db?characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai",
     "user": "root",
     "password": "your_password",
-    "pool_min": 2,
-    "pool_max": 4,
     "max_affected_rows": 200
   },
   "ORACLE_SAMPLE": {
-    "driver": "oracle.jdbc.OracleDriver",
+    "driver": "oracle",
     "url": "jdbc:oracle:thin:@//localhost:1521/FREEPDB1",
     "user": "hr",
-    "password": "your_password",
-    "pool_min": 1,
-    "pool_max": 2,
-    "max_affected_rows": 100
+    "password": "your_password"
   },
   "DM_SAMPLE": {
-    "driver": "dm.jdbc.driver.DmDriver",
+    "driver": "dm",
     "url": "jdbc:dm://localhost:5236/SYSDBA",
     "user": "SYSDBA",
-    "password": "your_password",
-    "pool_min": 1,
-    "pool_max": 2,
-    "max_affected_rows": 100
+    "password": "your_password"
   },
   "PG_SAMPLE": {
-    "driver": "org.postgresql.Driver",
+    "driver": "postgres",
     "url": "jdbc:postgresql://localhost:5432/sampledb",
     "user": "postgres",
-    "password": "your_password",
-    "pool_min": 1,
-    "pool_max": 2,
-    "max_affected_rows": 100
+    "password": "your_password"
   },
   "SQLITE_SAMPLE": {
-    "driver": "org.sqlite.JDBC",
+    "driver": "sqlite",
     "url": "jdbc:sqlite:./data/sample.db",
     "user": "",
-    "password": "",
-    "pool_min": 1,
-    "pool_max": 1,
-    "max_affected_rows": 100
+    "password": ""
   }
 }
