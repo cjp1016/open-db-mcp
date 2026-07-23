@@ -92,6 +92,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
         sql: str,
         data_source: str | None = None,
         dry_run: bool = True,
+        purpose: str | None = None,
     ) -> dict[str, Any]:
         """执行 DDL（CREATE/ALTER/DROP）或 PL/SQL 匿名块。
 
@@ -102,6 +103,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             sql: DDL 或 PL/SQL 匿名块。
             data_source: 数据源名称，不传则使用当前活跃数据源。
             dry_run: 默认 True（仅预检语法，不实际执行）。
+            purpose: 执行此 DDL 的目的说明（用于审计日志分析）。
 
         Returns:
             dry_run=True  → {dry_run: True, dml, tables, syntax_ok}
@@ -111,4 +113,5 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             sql=sql,
             data_source=data_source,
             dry_run=dry_run,
+            purpose=purpose,
         )

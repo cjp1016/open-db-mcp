@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import os
 import threading
-import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+# 北京时间 UTC+8
+_BJT = timezone(timedelta(hours=8))
 
 _lock = threading.Lock()
 _path: str = ""
@@ -32,11 +34,14 @@ def audit(
     error: str | None = None,
     dry_run: bool = False,
     user: str | None = None,
+    purpose: str | None = None,
 ) -> None:
     if not _enabled or not _path:
         return
+    dt = datetime.now(_BJT)
+    ts = dt.strftime("%Y-%m-%d %H:%M:%S.") + f"{dt.microsecond // 1000:03d}"
     record = {
-        "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+        "ts": ts,
         "user": user or os.environ.get("USER") or os.environ.get("USERNAME") or "unknown",
         "jndi": jndi,
         "sql": sql,
@@ -46,6 +51,7 @@ def audit(
         "status": status,
         "error": error,
         "dry_run": dry_run,
+        "purpose": purpose or "",
     }
     line = json.dumps(record, ensure_ascii=False, default=str)
     with _lock:

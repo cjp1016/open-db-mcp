@@ -14,7 +14,7 @@ import logging
 import shutil
 import threading
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +23,9 @@ from ..registry import DataSourceRegistry
 from ..safety.sql_analyzer import analyze
 
 log = logging.getLogger("open-db-mcp.services.slow_query")
+
+# 北京时间 UTC+8
+_BJT = timezone(timedelta(hours=8))
 
 _lock = threading.Lock()
 
@@ -61,8 +64,10 @@ class SlowQueryService:
         purpose: str | None = None,
     ) -> None:
         """记录一条慢查询（由 QueryService/DmlService 在超阈值时调用）。"""
+        dt = datetime.now(_BJT)
+        ts = dt.strftime("%Y-%m-%d %H:%M:%S.") + f"{dt.microsecond // 1000:03d}"
         entry = {
-            "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+            "ts": ts,
             "jndi": jndi,
             "sql": sql[:2000],  # 截断超长 SQL
             "params": _safe_params(params),

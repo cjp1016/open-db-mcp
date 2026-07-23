@@ -77,6 +77,7 @@ class DmlService:
                     status="rejected",
                     error=f"预计影响 {est} 行 > 上限 {cap}",
                     dry_run=True,
+                    purpose=purpose,
                 )
                 raise SafetyError(
                     f"预计影响 {est} 行 > 上限 {cap}，已拒绝执行"
@@ -105,6 +106,7 @@ class DmlService:
                 duration_ms=duration,
                 status="ok",
                 dry_run=False,
+                purpose=purpose,
             )
             sqs.record_if_slow(
                 jndi=data_source, sql=sql, duration_ms=duration,
@@ -130,6 +132,7 @@ class DmlService:
                 status="error",
                 error=str(exc),
                 dry_run=dry_run,
+                purpose=purpose,
             )
             raise
         finally:
@@ -165,6 +168,7 @@ class DmlService:
         sql: str,
         data_source: str | None = None,
         dry_run: bool = True,
+        purpose: str | None = None,
     ) -> dict[str, Any]:
         """执行 DDL（CREATE/ALTER/DROP）或 PL/SQL 匿名块。"""
         data_source = self._registry.resolve(data_source)
@@ -217,6 +221,7 @@ class DmlService:
                 duration_ms=duration,
                 status="ok",
                 dry_run=False,
+                purpose=purpose,
             )
             return {
                 "dry_run": False,
@@ -238,6 +243,7 @@ class DmlService:
                 status="error",
                 error=str(exc),
                 dry_run=dry_run,
+                purpose=purpose,
             )
             raise
         finally:
