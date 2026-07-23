@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     default_query_max_rows: int = 1000
     query_timeout_sec: int = 30
 
+    # ---- 慢查询分析 ----
+    slow_query_threshold_ms: int = 1000
+    slow_query_log_path: str = ""
+    slow_query_max_records: int = 500
+
     # ---- 审计 ----
     audit_log_path: str = ""
     audit_enabled: bool = True
@@ -92,11 +97,14 @@ class Settings(BaseSettings):
                 [user_dir, package_root],
             ),
             "datasources_cfg": self._abs(
-                self.datasources_cfg_path or "config/datasources.json",
-                [user_dir, package_root],
+                self.datasources_cfg_path or "datasources.json",
+                [Path.cwd(), user_dir],
             ),
             "audit_log": self.audit_log_path or str(
                 user_dir / "audit.jsonl"
+            ),
+            "slow_query_log": self.slow_query_log_path or str(
+                Path.cwd() / "slow_queries.jsonl"
             ),
         }
 
@@ -127,6 +135,9 @@ _CAMEL_TO_SNAKE = {
     "queryTimeoutSec": "query_timeout_sec",
     "auditLogPath": "audit_log_path",
     "auditEnabled": "audit_enabled",
+    "slowQueryThresholdMs": "slow_query_threshold_ms",
+    "slowQueryLogPath": "slow_query_log_path",
+    "slowQueryMaxRecords": "slow_query_max_records",
 }
 
 

@@ -247,6 +247,46 @@ class PostgresDriver(DriverAdapter):
         return plan
 
     # ------------------------------------------------------------------
+    # 慢查询日志
+    # ------------------------------------------------------------------
+
+    def fetch_slow_queries(
+        self, conn: Any, limit: int = 50, threshold_sec: float = 1.0
+    ) -> list[dict[str, Any]]:
+        """从 pg_stat_statements 获取慢查询（需安装扩展）。"""
+        sql = """
+            SELECT
+                query,
+                calls,
+                ROUND(mean_exec_time::numeric, 1) AS avg_ms,
+                ROUND(max_exec_time::numeric, 1) AS max_ms,
+                ROUND(total_exec_time::numeric, 1) AS total_ms,
+                ROUND(rows::numeric / NULLIF(calls, 0), 0) AS avg_rows
+            FROM pg_stat_statements
+            WHERE mean_exec_time > %s * 1000
+            ORDER BY mean_exec_time DESC
+            LIMIT %s
+        """
+        results: list[dict[str, Any]] = []
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (threshold_sec, limit))
+                for row in cur.fetchall():
+                    query, calls, avg_ms, max_ms, total_ms, avg_rows = row
+                    results.append({
+                        "sql": (query or "")[:2000],
+                        "duration_ms": int(avg_ms or 0),
+                        "max_ms": int(max_ms or 0),
+                        "exec_count": int(calls or 0),
+                        "total_ms": int(total_ms or 0),
+                        "avg_rows": int(avg_rows or 0),
+                        "source": "database",
+                    })
+        except Exception:
+            pass
+        return results
+
+    # ------------------------------------------------------------------
     # 内部方法
     # ------------------------------------------------------------------
 

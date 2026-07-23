@@ -15,7 +15,9 @@ from .config import get_package_root, get_settings
 from .registry import DataSourceRegistry
 from .safety import auditor
 from .safety.whitelist import load_whitelist
-from .tools import data_tools, dml_tools, ds_tools, meta_tools, query_tools
+from .services import slow_query_service as sqs
+from .services.slow_query_service import SlowQueryService
+from .tools import data_tools, dml_tools, ds_tools, meta_tools, query_tools, slow_query_tools
 
 
 def _setup_logging() -> logging.Logger:
@@ -71,12 +73,24 @@ def build_server() -> FastMCP:
     auditor.configure(paths["audit_log"], settings.audit_enabled)
     log.info("审计日志: %s (enabled=%s)", paths["audit_log"], settings.audit_enabled)
 
+    # 慢查询分析
+    slow_query_svc = SlowQueryService(
+        registry, settings, log_path=paths.get("slow_query_log", "")
+    )
+    sqs.configure(slow_query_svc, settings.slow_query_threshold_ms)
+    log.info(
+        "慢查询分析: 阈值=%dms, 日志=%s",
+        settings.slow_query_threshold_ms,
+        paths.get("slow_query_log", ""),
+    )
+
     mcp = FastMCP("open-db-mcp")
     ds_tools.register(mcp, registry, settings)
     query_tools.register(mcp, registry, settings)
     dml_tools.register(mcp, registry, settings)
     meta_tools.register(mcp, registry, settings)
     data_tools.register(mcp, registry, settings)
+    slow_query_tools.register(mcp, registry, settings, slow_query_svc)
 
     return mcp
 

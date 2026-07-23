@@ -121,3 +121,14 @@ class DriverAdapter(Protocol):
     ) -> ExplainPlan:
         """EXPLAIN 查询执行计划。"""
         ...
+
+    def fetch_slow_queries(
+        self, conn: Any, limit: int = 50, threshold_sec: float = 1.0
+    ) -> list[dict[str, Any]]:
+        """从数据库原生慢日志获取慢查询记录（可选实现）。
+
+        返回字段约定：
+            sql, duration_ms, exec_time, user, source='database'
+        未实现的驱动应返回空列表。
+        """
+        return []

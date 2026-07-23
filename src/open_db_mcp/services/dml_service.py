@@ -10,13 +10,14 @@ from typing import Any
 
 from ..config import Settings
 from ..registry import DataSourceRegistry
-from ..safety import SafetyError
-from ..safety import auditor
+from ..safety import SafetyError, auditor
 from ..safety.impact_estimator import estimate
 from ..safety.sql_analyzer import analyze
 from ..safety.sql_validator import validate_sql
-from ..safety.whitelist import check, max_affected_rows as rule_max_affected_rows
+from ..safety.whitelist import check
+from ..safety.whitelist import max_affected_rows as rule_max_affected_rows
 from ..tx import transaction as tx
+from . import slow_query_service as sqs
 
 
 class DmlService:
@@ -37,6 +38,7 @@ class DmlService:
         params: dict | None = None,
         dry_run: bool = True,
         max_affected_rows_override: int | None = None,
+        purpose: str | None = None,
     ) -> dict[str, Any]:
         """执行受限的 UPDATE/INSERT/DELETE。"""
         data_source = self._registry.resolve(data_source)
@@ -103,6 +105,10 @@ class DmlService:
                 duration_ms=duration,
                 status="ok",
                 dry_run=False,
+            )
+            sqs.record_if_slow(
+                jndi=data_source, sql=sql, duration_ms=duration,
+                params=params, rowcount=affected, purpose=purpose,
             )
             return {
                 "dry_run": False,

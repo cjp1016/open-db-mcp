@@ -206,6 +206,52 @@ class MysqlDriver(DriverAdapter):
         return plan
 
     # ------------------------------------------------------------------
+    # 慢查询日志
+    # ------------------------------------------------------------------
+
+    def fetch_slow_queries(
+        self, conn: Any, limit: int = 50, threshold_sec: float = 1.0
+    ) -> list[dict[str, Any]]:
+        """从 performance_schema 获取慢查询摘要。"""
+        sql = """
+            SELECT
+                DIGEST_TEXT AS sql_text,
+                COUNT_STAR AS exec_count,
+                ROUND(AVG_TIMER_WAIT / 1000000000, 1) AS avg_ms,
+                ROUND(MAX_TIMER_WAIT / 1000000000, 1) AS max_ms,
+                ROUND(SUM_TIMER_WAIT / 1000000000, 1) AS total_ms,
+                FIRST_SEEN,
+                LAST_SEEN,
+                SCHEMA_NAME
+            FROM performance_schema.events_statements_summary_by_digest
+            WHERE AVG_TIMER_WAIT > %s * 1000000000000
+              AND DIGEST_TEXT IS NOT NULL
+              AND SCHEMA_NAME IS NOT NULL
+            ORDER BY AVG_TIMER_WAIT DESC
+            LIMIT %s
+        """
+        results: list[dict[str, Any]] = []
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (threshold_sec, limit))
+                cols = [d[0] for d in cur.description] if cur.description else []
+                for row in cur.fetchall():
+                    record = dict(zip(cols, row))
+                    results.append({
+                        "sql": record.get("sql_text", "")[:2000],
+                        "duration_ms": int(record.get("avg_ms", 0)),
+                        "max_ms": int(record.get("max_ms", 0)),
+                        "exec_count": int(record.get("exec_count", 0)),
+                        "schema": record.get("SCHEMA_NAME"),
+                        "first_seen": str(record.get("FIRST_SEEN", "")),
+                        "last_seen": str(record.get("LAST_SEEN", "")),
+                        "source": "database",
+                    })
+        except Exception:
+            pass
+        return results
+
+    # ------------------------------------------------------------------
     # 内部方法
     # ------------------------------------------------------------------
 

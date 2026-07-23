@@ -27,7 +27,7 @@ def init(
 ) -> None:
     """首次运行：引导生成 ~/.open-db-mcp/config.yaml + whitelist.json。
 
-    数据源配置请直接编辑项目目录下的 config/datasources.json。
+    数据源配置请编辑当前项目目录（mcp.json 所在位置）下的 datasources.json。
     """
     settings = get_settings()
     cfg_dir = Path(settings.user_config_dir)
@@ -63,13 +63,19 @@ def init(
 
     pkg_root = get_package_root()
     ds_src = pkg_root / "config" / "datasources.json"
-    ds_dst = cfg_dir / "datasources.json"
-    if ds_src.is_file() and not ds_dst.exists():
-        shutil.copy(ds_src, ds_dst)
-        typer.echo(f"已复制数据源配置: {ds_dst}（请编辑填入实际密码）")
+    # 优先复制到 cwd（mcp.json 所在目录），其次 ~/.open-db-mcp/
+    ds_dst_cwd = Path.cwd() / "datasources.json"
+    ds_dst_cfg = cfg_dir / "datasources.json"
+    if ds_src.is_file():
+        if not ds_dst_cwd.exists():
+            shutil.copy(ds_src, ds_dst_cwd)
+            typer.echo(f"已复制数据源配置: {ds_dst_cwd}（请编辑填入实际密码）")
+        elif not ds_dst_cfg.exists():
+            shutil.copy(ds_src, ds_dst_cfg)
+            typer.echo(f"已复制数据源配置: {ds_dst_cfg}（请编辑填入实际密码）")
 
     typer.echo("下一步：")
-    typer.echo(f"  1. 编辑 {ds_dst} 配置数据源连接信息（driver / url / user / password）")
+    typer.echo(f"  1. 编辑 datasources.json 配置数据源连接信息（driver / url / user / password）")
     typer.echo(f"  2. 编辑 {wl_path} 配置表/列白名单")
     typer.echo(f"  3. 运行 `open-db-mcp doctor` 健康检查")
     typer.echo(f"  4. 在 MCP 客户端配置 command = {sys.argv[0]}")

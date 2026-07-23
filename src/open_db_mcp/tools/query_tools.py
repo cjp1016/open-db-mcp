@@ -19,6 +19,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
         data_source: str | None = None,
         params: dict | None = None,
         max_rows: int = 1000,
+        purpose: str | None = None,
     ) -> dict[str, Any]:
         """执行只读 SELECT/WITH 查询，返回 {columns, rows, rowcount}。
 
@@ -27,10 +28,12 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             data_source: 数据源名称，不传则使用当前活跃数据源。
             params: 命名参数（如 {"id": 123}）或位置参数。
             max_rows: 最大返回行数（默认 1000）。
+            purpose: 执行此查询的目的说明（用于慢查询日志分析）。
         """
         return service.execute(
             sql=sql,
             data_source=data_source,
             params=params,
             max_rows=max_rows,
+            purpose=purpose,
         )

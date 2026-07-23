@@ -252,6 +252,47 @@ class OracleDriver(DriverAdapter):
         return plan
 
     # ------------------------------------------------------------------
+    # 慢查询日志
+    # ------------------------------------------------------------------
+
+    def fetch_slow_queries(
+        self, conn: Any, limit: int = 50, threshold_sec: float = 1.0
+    ) -> list[dict[str, Any]]:
+        """从 V$SQL 获取慢查询（elapsed_time 单位为微秒）。"""
+        sql = """
+            SELECT
+                SQL_TEXT,
+                EXECUTIONS,
+                ROUND(ELAPSED_TIME / NULLIF(EXECUTIONS, 0) / 1000, 1) AS avg_ms,
+                ROUND(ELAPSED_TIME / 1000, 1) AS total_ms,
+                PARSING_SCHEMA_NAME,
+                LAST_ACTIVE_TIME
+            FROM V$SQL
+            WHERE ELAPSED_TIME / NULLIF(EXECUTIONS, 0) > :threshold_us
+              AND PARSING_SCHEMA_NAME NOT IN ('SYS', 'SYSTEM')
+            ORDER BY ELAPSED_TIME / NULLIF(EXECUTIONS, 0) DESC
+            FETCH FIRST :lim ROWS ONLY
+        """
+        results: list[dict[str, Any]] = []
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, threshold_us=int(threshold_sec * 1_000_000), lim=limit)
+                for row in cur.fetchall():
+                    sql_text, execs, avg_ms, total_ms, schema, last_active = row
+                    results.append({
+                        "sql": (sql_text or "")[:2000],
+                        "duration_ms": int(avg_ms or 0),
+                        "total_ms": int(total_ms or 0),
+                        "exec_count": int(execs or 0),
+                        "schema": schema,
+                        "last_seen": str(last_active or ""),
+                        "source": "database",
+                    })
+        except Exception:
+            pass
+        return results
+
+    # ------------------------------------------------------------------
     # 内部方法
     # ------------------------------------------------------------------
 

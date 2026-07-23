@@ -18,7 +18,7 @@
 
 **支持数据库**：MySQL · Oracle · 达梦 · PostgreSQL · Vastbase · openGauss · SQLite
 
-**核心能力**：多数据源一键切换 · 三层白名单安全护栏 · 影响行数预检 · 事务支持 · CSV/JSON 导入导出 · 跨库 Schema Diff · 插件化驱动扩展
+**核心能力**：多数据源一键切换 · 三层白名单安全护栏 · 影响行数预检 · 事务支持 · 慢 SQL 分析 · CSV/JSON 导入导出 · 跨库 Schema Diff · 插件化驱动扩展
 
 ---
 
@@ -112,29 +112,6 @@ uv run open-db-mcp doctor   # 健康检查
 | Claude Desktop (Windows) | `%APPDATA%\Claude\claude_desktop_config.json` |
 | Cursor | `~/.cursor/mcp.json` |
 | Trae / 其他 | 参考对应客户端的 MCP 配置文档，格式相同 |
-
----
-
-## 🧰 MCP 工具（25 个）
-
-| 分类 | 工具 |
-|------|------|
-| 数据源管理 | `list_datasources`, `use_datasource`, `get_active_datasource`, `add_datasource`, `update_datasource`, `remove_datasource`, `ping_datasource`, `get_pool_stats`, `list_drivers` |
-| 元数据浏览 | `list_schemas`, `list_tables`, `list_indexes`, `describe_table`, `explain_query`, `sample_table`, `diff_schema` |
-| 查询执行 | `execute_query` |
-| DML + 事务 | `execute_dml`, `execute_ddl`, `begin_transaction`, `commit_transaction`, `rollback_transaction`, `get_transaction_status` |
-| 导入导出 | `export_table`, `import_csv` |
-
----
-
-## 🛠️ CLI
-
-| 命令 | 说明 |
-|------|------|
-| `open-db-mcp init` | 引导生成配置文件 |
-| `open-db-mcp doctor` | 健康检查 |
-| `open-db-mcp run` | 启动 stdio MCP server |
-| `open-db-mcp list` | 列出数据源与连接池状态 |
 
 ---
 

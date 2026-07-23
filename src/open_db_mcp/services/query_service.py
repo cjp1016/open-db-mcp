@@ -8,12 +8,14 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from ..config import Settings
 from ..registry import DataSourceRegistry
 from ..safety.sql_analyzer import analyze
 from ..safety.sql_validator import validate_sql
+from . import slow_query_service as sqs
 
 
 class QueryService:
@@ -33,6 +35,7 @@ class QueryService:
         data_source: str | None = None,
         params: dict | None = None,
         max_rows: int = 1000,
+        purpose: str | None = None,
     ) -> dict[str, Any]:
         """执行只读 SELECT/WITH 查询。"""
         data_source = self._registry.resolve(data_source)
@@ -56,15 +59,22 @@ class QueryService:
         pool = self._registry.get(data_source)
         conn = pool.connection()
         try:
+            started = time.perf_counter()
             with conn.cursor() as cur:
                 cur.execute(sql, _params_tuple(params))
                 cols = [d[0] for d in cur.description] if cur.description else []
                 rows = cur.fetchmany(cap)
+                duration_ms = int((time.perf_counter() - started) * 1000)
+                sqs.record_if_slow(
+                    jndi=data_source, sql=sql, duration_ms=duration_ms,
+                    params=params, rowcount=len(rows), purpose=purpose,
+                )
                 return {
                     "columns": cols,
                     "rows": [_serialize(r) for r in rows],
                     "rowcount": len(rows),
                     "truncated": len(rows) == cap,
+                    "duration_ms": duration_ms,
                 }
         finally:
             conn.close()

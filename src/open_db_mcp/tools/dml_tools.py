@@ -20,6 +20,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
         params: dict | None = None,
         dry_run: bool = True,
         max_affected_rows_override: int | None = None,
+        purpose: str | None = None,
     ) -> dict[str, Any]:
         """执行受限的 UPDATE/INSERT/DELETE。
 
@@ -29,6 +30,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             params: 命名/位置参数。
             dry_run: 默认 True（仅做影响行数预检，不实际执行）。
             max_affected_rows_override: 覆盖白名单中的 max_affected_rows。
+            purpose: 执行此 DML 的目的说明（用于慢查询日志分析）。
 
         Returns:
             dry_run=True  → {dry_run: True, estimated_affected_rows: N}
@@ -40,6 +42,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             params=params,
             dry_run=dry_run,
             max_affected_rows_override=max_affected_rows_override,
+            purpose=purpose,
         )
 
     @mcp.tool()
