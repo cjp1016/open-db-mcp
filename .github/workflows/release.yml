@@ -9,26 +9,6 @@ permissions:
   contents: write
 
 jobs:
-  build-package:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Build sdist and wheel
-        run: uv build
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-packages
-          path: dist/
-
   build-binaries:
     strategy:
       matrix:
@@ -78,7 +58,7 @@ jobs:
           path: dist/${{ matrix.artifact_name }}
 
   release:
-    needs: [build-package, build-binaries]
+    needs: [build-binaries]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,14 +71,32 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          cp artifacts/python-packages/* release-assets/
           cp artifacts/binary-linux/* release-assets/
           cp artifacts/binary-macos/* release-assets/
           cp artifacts/binary-windows/* release-assets/
           ls -la release-assets/
 
+      - name: Generate release notes
+        id: notes
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            RANGE=""
+          else
+            RANGE="$PREV_TAG..."
+          fi
+          {
+            echo "## What's Changed"
+            echo ""
+            git log ${RANGE}HEAD --pretty=format:"- %s" --no-merges
+            echo ""
+            echo ""
+            echo "Full Changelog: \`${RANGE}${{ github.ref_name }}\`"
+          } > release-notes.md
+          cat release-notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: release-notes.md
           files: release-assets/*
