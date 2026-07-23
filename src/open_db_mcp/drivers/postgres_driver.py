@@ -287,6 +287,164 @@ class PostgresDriver(DriverAdapter):
         return results
 
     # ------------------------------------------------------------------
+    # DBA 功能：锁管理 + 表空间管理
+    # ------------------------------------------------------------------
+
+    def list_locks(self, conn: Any) -> list[dict[str, Any]]:
+        """查询当前锁/阻塞信息（pg_locks + pg_stat_activity）。"""
+        sql = """
+            SELECT
+                blocked.pid AS session_id,
+                blocked.usename AS username,
+                blocked.state AS status,
+                blocking.pid AS blocking_session,
+                EXTRACT(EPOCH FROM (now() - blocked.query_start))::int AS wait_time_sec,
+                blocked.query AS sql_text,
+                blocked_lock.locktype AS lock_type,
+                blocked_lock.relation::regclass::text AS table_name
+            FROM pg_stat_activity blocked
+            JOIN pg_locks blocked_lock ON blocked.pid = blocked_lock.pid
+            LEFT JOIN pg_locks blocking_lock
+              ON blocked_lock.locktype = blocking_lock.locktype
+             AND blocked_lock.relation = blocking_lock.relation
+             AND blocked_lock.pid != blocking_lock.pid
+             AND blocking_lock.granted
+            LEFT JOIN pg_stat_activity blocking ON blocking_lock.pid = blocking.pid
+            WHERE NOT blocked_lock.granted
+              AND blocked.pid != pg_backend_pid()
+            ORDER BY wait_time_sec DESC NULLS LAST
+        """
+        results: list[dict[str, Any]] = []
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                for row in cur.fetchall():
+                    pid, username, status, blocking_pid, wait_sec, sql_text, lock_type, table_name = row
+                    results.append({
+                        "session_id": str(pid),
+                        "serial": None,
+                        "username": username or "",
+                        "status": status or "",
+                        "blocking_session": str(blocking_pid) if blocking_pid else None,
+                        "wait_time_sec": int(wait_sec) if wait_sec else 0,
+                        "lock_type": lock_type or "",
+                        "table_name": table_name or "",
+                        "sql_text": (sql_text or "")[:500],
+                    })
+        except Exception:
+            # 回退到简单查询
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT pid, usename, state, query_start, query
+                        FROM pg_stat_activity
+                        WHERE state != 'idle'
+                          AND pid != pg_backend_pid()
+                        ORDER BY query_start
+                    """)
+                    for row in cur.fetchall():
+                        pid, username, status, _start, sql_text = row
+                        results.append({
+                            "session_id": str(pid),
+                            "serial": None,
+                            "username": username or "",
+                            "status": status or "",
+                            "blocking_session": None,
+                            "wait_time_sec": 0,
+                            "lock_type": "",
+                            "sql_text": (sql_text or "")[:500],
+                        })
+            except Exception:
+                pass
+        return results
+
+    def kill_session(
+        self, conn: Any, session_id: str, serial: str | None = None
+    ) -> dict[str, Any]:
+        """终止 PostgreSQL 会话：pg_terminate_backend(pid)。"""
+        sql = f"SELECT pg_terminate_backend({session_id})"
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                row = cur.fetchone()
+                success = row[0] if row else False
+            return {
+                "success": bool(success),
+                "message": f"已终止会话 {session_id}" if success else f"无法终止会话 {session_id}",
+                "sql": sql,
+            }
+        except Exception as exc:
+            return {"success": False, "message": str(exc), "sql": sql}
+
+    def list_tablespaces(self, conn: Any) -> list[dict[str, Any]]:
+        """查询表空间使用情况（pg_tablespace + pg_database_size）。"""
+        sql = """
+            SELECT
+                spcname AS name,
+                COALESCE(pg_tablespace_location(oid), 'default') AS file_path,
+                ROUND(pg_tablespace_size(oid) / 1024.0 / 1024.0, 2) AS total_mb
+            FROM pg_tablespace
+            ORDER BY pg_tablespace_size(oid) DESC
+        """
+        results: list[dict[str, Any]] = []
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                for row in cur.fetchall():
+                    name, file_path, total_mb = row
+                    results.append({
+                        "name": name,
+                        "file_path": file_path or "",
+                        "total_mb": float(total_mb) if total_mb else 0,
+                        "used_mb": float(total_mb) if total_mb else 0,
+                        "free_mb": 0,
+                        "used_pct": 100.0,
+                        "autoextend": True,
+                        "max_size_mb": 0,
+                    })
+        except Exception:
+            pass
+        # 添加数据库级别统计
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        datname,
+                        ROUND(pg_database_size(datname) / 1024.0 / 1024.0, 2) AS size_mb
+                    FROM pg_database
+                    WHERE datistemplate = false
+                    ORDER BY pg_database_size(datname) DESC
+                """)
+                for row in cur.fetchall():
+                    db_name, size_mb = row
+                    results.append({
+                        "name": f"db:{db_name}",
+                        "file_path": "",
+                        "total_mb": float(size_mb) if size_mb else 0,
+                        "used_mb": float(size_mb) if size_mb else 0,
+                        "free_mb": 0,
+                        "used_pct": 100.0,
+                        "autoextend": True,
+                        "max_size_mb": 0,
+                    })
+        except Exception:
+            pass
+        return results
+
+    def resize_tablespace(
+        self, conn: Any, file_path: str, new_size_mb: int
+    ) -> dict[str, Any]:
+        """PostgreSQL 表空间自动管理，不支持手动扩容。"""
+        return {
+            "success": False,
+            "message": (
+                "PostgreSQL 表空间由文件系统自动管理，不支持手动 RESIZE。"
+                "建议：1) 清理无用数据 2) 执行 VACUUM FULL 3) 扩展磁盘空间。"
+            ),
+            "sql": "",
+        }
+
+    # ------------------------------------------------------------------
     # 内部方法
     # ------------------------------------------------------------------
 

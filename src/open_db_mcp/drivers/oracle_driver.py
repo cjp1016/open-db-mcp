@@ -293,6 +293,132 @@ class OracleDriver(DriverAdapter):
         return results
 
     # ------------------------------------------------------------------
+    # DBA 功能：锁管理 + 表空间管理
+    # ------------------------------------------------------------------
+
+    def list_locks(self, conn: Any) -> list[dict[str, Any]]:
+        """查询当前锁/阻塞信息（V$SESSION + V$LOCK）。"""
+        sql = """
+            SELECT
+                s.SID,
+                s.SERIAL#,
+                s.USERNAME,
+                s.STATUS,
+                s.BLOCKING_SESSION,
+                s.SECONDS_IN_WAIT,
+                l.TYPE AS LOCK_TYPE,
+                q.SQL_TEXT
+            FROM V$SESSION s
+            LEFT JOIN V$LOCK l ON s.SID = l.SID AND l.REQUEST > 0
+            LEFT JOIN V$SQL q ON s.SQL_ID = q.SQL_ID AND q.CHILD_NUMBER = 0
+            WHERE s.TYPE = 'USER'
+              AND (s.BLOCKING_SESSION IS NOT NULL OR l.REQUEST > 0)
+            ORDER BY s.SECONDS_IN_WAIT DESC NULLS LAST
+        """
+        results: list[dict[str, Any]] = []
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                for row in cur.fetchall():
+                    sid, serial, username, status, blocking, wait_sec, lock_type, sql_text = row
+                    results.append({
+                        "session_id": str(sid),
+                        "serial": str(serial),
+                        "username": username or "",
+                        "status": status or "",
+                        "blocking_session": str(blocking) if blocking else None,
+                        "wait_time_sec": int(wait_sec) if wait_sec else 0,
+                        "lock_type": lock_type or "",
+                        "sql_text": (sql_text or "")[:500],
+                    })
+        except Exception:
+            pass
+        return results
+
+    def kill_session(
+        self, conn: Any, session_id: str, serial: str | None = None
+    ) -> dict[str, Any]:
+        """终止 Oracle 会话：ALTER SYSTEM KILL SESSION 'sid,serial#' IMMEDIATE。"""
+        if not serial:
+            # 尝试自动获取 serial#
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT SERIAL# FROM V$SESSION WHERE SID = :sid",
+                        sid=int(session_id),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        serial = str(row[0])
+            except Exception as exc:
+                return {"success": False, "message": f"无法获取 serial#: {exc}"}
+        if not serial:
+            return {"success": False, "message": "缺少 serial# 参数"}
+        sql = f"ALTER SYSTEM KILL SESSION '{session_id},{serial}' IMMEDIATE"
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+            return {"success": True, "message": f"已终止会话 {session_id},{serial}", "sql": sql}
+        except Exception as exc:
+            return {"success": False, "message": str(exc), "sql": sql}
+
+    def list_tablespaces(self, conn: Any) -> list[dict[str, Any]]:
+        """查询表空间使用情况（DBA_DATA_FILES + DBA_FREE_SPACE）。"""
+        sql = """
+            SELECT
+                d.TABLESPACE_NAME,
+                d.FILE_NAME,
+                ROUND(d.BYTES / 1024 / 1024, 2) AS TOTAL_MB,
+                ROUND((d.BYTES - NVL(f.FREE_BYTES, 0)) / 1024 / 1024, 2) AS USED_MB,
+                ROUND(NVL(f.FREE_BYTES, 0) / 1024 / 1024, 2) AS FREE_MB,
+                ROUND((d.BYTES - NVL(f.FREE_BYTES, 0)) / d.BYTES * 100, 1) AS USED_PCT,
+                d.AUTOEXTENSIBLE,
+                ROUND(d.MAXBYTES / 1024 / 1024, 2) AS MAX_SIZE_MB
+            FROM DBA_DATA_FILES d
+            LEFT JOIN (
+                SELECT FILE_ID, SUM(BYTES) AS FREE_BYTES
+                FROM DBA_FREE_SPACE
+                GROUP BY FILE_ID
+            ) f ON d.FILE_ID = f.FILE_ID
+            ORDER BY USED_PCT DESC
+        """
+        results: list[dict[str, Any]] = []
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                for row in cur.fetchall():
+                    name, file_path, total, used, free, pct, autoext, max_sz = row
+                    results.append({
+                        "name": name,
+                        "file_path": file_path,
+                        "total_mb": float(total) if total else 0,
+                        "used_mb": float(used) if used else 0,
+                        "free_mb": float(free) if free else 0,
+                        "used_pct": float(pct) if pct else 0,
+                        "autoextend": autoext == "YES",
+                        "max_size_mb": float(max_sz) if max_sz else 0,
+                    })
+        except Exception:
+            pass
+        return results
+
+    def resize_tablespace(
+        self, conn: Any, file_path: str, new_size_mb: int
+    ) -> dict[str, Any]:
+        """扩容数据文件：ALTER DATABASE DATAFILE 'path' RESIZE nM。"""
+        sql = f"ALTER DATABASE DATAFILE '{file_path}' RESIZE {new_size_mb}M"
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+            return {
+                "success": True,
+                "message": f"已将 {file_path} 扩容至 {new_size_mb}MB",
+                "sql": sql,
+            }
+        except Exception as exc:
+            return {"success": False, "message": str(exc), "sql": sql}
+
+    # ------------------------------------------------------------------
     # 内部方法
     # ------------------------------------------------------------------
 

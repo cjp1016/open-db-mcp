@@ -132,3 +132,57 @@ class DriverAdapter(Protocol):
         未实现的驱动应返回空列表。
         """
         return []
+
+    # ------------------------------------------------------------------
+    # DBA 功能：锁管理 + 表空间管理
+    # ------------------------------------------------------------------
+
+    def list_locks(self, conn: Any) -> list[dict[str, Any]]:
+        """查询当前锁/死锁信息。
+
+        返回字段约定：
+            session_id, serial, username, status, blocking_session,
+            sql_text, wait_time_sec, lock_type, table_name
+        未实现的驱动应返回空列表。
+        """
+        return []
+
+    def kill_session(
+        self, conn: Any, session_id: str, serial: str | None = None
+    ) -> dict[str, Any]:
+        """终止指定会话（解锁）。
+
+        Args:
+            conn: 数据库连接。
+            session_id: 会话 ID（Oracle SID / MySQL process_id / PG pid）。
+            serial: Oracle 专用 serial#，其他数据库忽略。
+
+        Returns:
+            {"success": True/False, "message": "..."}
+        """
+        return {"success": False, "message": "该数据库不支持 kill_session"}
+
+    def list_tablespaces(self, conn: Any) -> list[dict[str, Any]]:
+        """查询表空间/数据文件使用情况。
+
+        返回字段约定：
+            name, file_path, total_mb, used_mb, free_mb, used_pct,
+            autoextend, max_size_mb
+        未实现的驱动应返回空列表。
+        """
+        return []
+
+    def resize_tablespace(
+        self, conn: Any, file_path: str, new_size_mb: int
+    ) -> dict[str, Any]:
+        """扩容数据文件。
+
+        Args:
+            conn: 数据库连接。
+            file_path: 数据文件路径。
+            new_size_mb: 新大小（MB）。
+
+        Returns:
+            {"success": True/False, "message": "...", "sql": "..."}
+        """
+        return {"success": False, "message": "该数据库不支持 resize_tablespace"}

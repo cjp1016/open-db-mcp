@@ -17,7 +17,7 @@ from .safety import auditor
 from .safety.whitelist import load_whitelist
 from .services import slow_query_service as sqs
 from .services.slow_query_service import SlowQueryService
-from .tools import data_tools, dml_tools, ds_tools, meta_tools, query_tools, slow_query_tools
+from .tools import data_tools, dba_tools, dml_tools, ds_tools, meta_tools, query_tools, slow_query_tools
 
 
 def _setup_logging() -> logging.Logger:
@@ -91,6 +91,7 @@ def build_server() -> FastMCP:
     meta_tools.register(mcp, registry, settings)
     data_tools.register(mcp, registry, settings)
     slow_query_tools.register(mcp, registry, settings, slow_query_svc)
+    dba_tools.register(mcp, registry, settings)
 
     return mcp
 

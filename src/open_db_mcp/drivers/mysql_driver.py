@@ -252,6 +252,152 @@ class MysqlDriver(DriverAdapter):
         return results
 
     # ------------------------------------------------------------------
+    # DBA 功能：锁管理 + 表空间管理
+    # ------------------------------------------------------------------
+
+    def list_locks(self, conn: Any) -> list[dict[str, Any]]:
+        """查询当前锁/阻塞信息（information_schema + PROCESSLIST）。"""
+        # MySQL 8.0+ 使用 performance_schema.data_locks
+        # 兼容 MySQL 5.7 使用 information_schema.INNODB_LOCKS
+        sql = """
+            SELECT
+                p.ID AS session_id,
+                p.USER AS username,
+                p.STATE AS status,
+                p.TIME AS wait_time_sec,
+                p.INFO AS sql_text,
+                COALESCE(r.trx_mysql_thread_id, 0) AS blocking_session
+            FROM information_schema.PROCESSLIST p
+            LEFT JOIN information_schema.INNODB_TRX t ON p.ID = t.trx_mysql_thread_id
+            LEFT JOIN information_schema.INNODB_LOCK_WAITS w ON t.trx_id = w.requesting_trx_id
+            LEFT JOIN information_schema.INNODB_TRX r ON w.blocking_trx_id = r.trx_id
+            WHERE p.COMMAND != 'Sleep'
+              AND p.INFO IS NOT NULL
+            ORDER BY p.TIME DESC
+        """
+        results: list[dict[str, Any]] = []
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                for row in cur.fetchall():
+                    sess_id, username, status, wait_sec, sql_text, blocking = row
+                    results.append({
+                        "session_id": str(sess_id),
+                        "serial": None,
+                        "username": username or "",
+                        "status": status or "",
+                        "blocking_session": str(blocking) if blocking else None,
+                        "wait_time_sec": int(wait_sec) if wait_sec else 0,
+                        "lock_type": "InnoDB",
+                        "sql_text": (sql_text or "")[:500],
+                    })
+        except Exception:
+            # 回退到简单查询
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SHOW PROCESSLIST")
+                    for row in cur.fetchall():
+                        sess_id, username, _host, _db, command, wait_sec, status, sql_text = row[:8]
+                        if command != "Sleep" and sql_text:
+                            results.append({
+                                "session_id": str(sess_id),
+                                "serial": None,
+                                "username": username or "",
+                                "status": status or "",
+                                "blocking_session": None,
+                                "wait_time_sec": int(wait_sec) if wait_sec else 0,
+                                "lock_type": "",
+                                "sql_text": (sql_text or "")[:500],
+                            })
+            except Exception:
+                pass
+        return results
+
+    def kill_session(
+        self, conn: Any, session_id: str, serial: str | None = None
+    ) -> dict[str, Any]:
+        """终止 MySQL 会话：KILL CONNECTION id。"""
+        sql = f"KILL CONNECTION {session_id}"
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+            return {"success": True, "message": f"已终止会话 {session_id}", "sql": sql}
+        except Exception as exc:
+            return {"success": False, "message": str(exc), "sql": sql}
+
+    def list_tablespaces(self, conn: Any) -> list[dict[str, Any]]:
+        """查询表空间使用情况（information_schema.FILES，MySQL 8.0+）。"""
+        sql = """
+            SELECT
+                TABLESPACE_NAME,
+                FILE_NAME,
+                ROUND(TOTAL_EXTENTS * EXTENT_SIZE / 1024 / 1024, 2) AS TOTAL_MB,
+                ROUND((TOTAL_EXTENTS - FREE_EXTENTS) * EXTENT_SIZE / 1024 / 1024, 2) AS USED_MB,
+                ROUND(FREE_EXTENTS * EXTENT_SIZE / 1024 / 1024, 2) AS FREE_MB,
+                ROUND((TOTAL_EXTENTS - FREE_EXTENTS) / NULLIF(TOTAL_EXTENTS, 0) * 100, 1) AS USED_PCT
+            FROM information_schema.FILES
+            WHERE FILE_TYPE = 'TABLESPACE'
+            ORDER BY USED_PCT DESC
+        """
+        results: list[dict[str, Any]] = []
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                for row in cur.fetchall():
+                    name, file_path, total, used, free, pct = row
+                    results.append({
+                        "name": name or "",
+                        "file_path": file_path or "",
+                        "total_mb": float(total) if total else 0,
+                        "used_mb": float(used) if used else 0,
+                        "free_mb": float(free) if free else 0,
+                        "used_pct": float(pct) if pct else 0,
+                        "autoextend": True,
+                        "max_size_mb": 0,
+                    })
+        except Exception:
+            # 回退到数据库级别统计
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT
+                            TABLE_SCHEMA,
+                            ROUND(SUM(DATA_LENGTH + INDEX_LENGTH) / 1024 / 1024, 2) AS SIZE_MB
+                        FROM information_schema.TABLES
+                        GROUP BY TABLE_SCHEMA
+                        ORDER BY SIZE_MB DESC
+                    """)
+                    for row in cur.fetchall():
+                        schema, size_mb = row
+                        results.append({
+                            "name": schema,
+                            "file_path": "",
+                            "total_mb": float(size_mb) if size_mb else 0,
+                            "used_mb": float(size_mb) if size_mb else 0,
+                            "free_mb": 0,
+                            "used_pct": 100.0,
+                            "autoextend": True,
+                            "max_size_mb": 0,
+                        })
+            except Exception:
+                pass
+        return results
+
+    def resize_tablespace(
+        self, conn: Any, file_path: str, new_size_mb: int
+    ) -> dict[str, Any]:
+        """MySQL 表空间自动管理，不支持手动扩容。"""
+        return {
+            "success": False,
+            "message": (
+                "MySQL InnoDB 表空间自动管理，不支持手动 RESIZE。"
+                "建议使用 ALTER TABLE ... ENGINE=InnoDB 重建表"
+                "或调整 innodb_data_file_path 配置。"
+            ),
+            "sql": "",
+        }
+
+    # ------------------------------------------------------------------
     # 内部方法
     # ------------------------------------------------------------------
 
