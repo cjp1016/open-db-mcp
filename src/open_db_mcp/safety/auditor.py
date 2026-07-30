@@ -33,7 +33,7 @@ def audit(
     status: str = "ok",
     error: str | None = None,
     dry_run: bool = False,
-    user: str | None = None,
+    operator: str | None = None,
     purpose: str | None = None,
 ) -> None:
     if not _enabled or not _path:
@@ -42,7 +42,7 @@ def audit(
     ts = dt.strftime("%Y-%m-%d %H:%M:%S.") + f"{dt.microsecond // 1000:03d}"
     record = {
         "ts": ts,
-        "user": user or os.environ.get("USER") or os.environ.get("USERNAME") or "unknown",
+        "operator": operator or os.environ.get("USER") or os.environ.get("USERNAME") or "unknown",
         "jndi": jndi,
         "sql": sql,
         "params": _safe_params(params),
