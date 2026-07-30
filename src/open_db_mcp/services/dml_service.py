@@ -39,6 +39,7 @@ class DmlService:
         dry_run: bool = True,
         max_affected_rows_override: int | None = None,
         purpose: str | None = None,
+        operator: str | None = None,
     ) -> dict[str, Any]:
         """执行受限的 UPDATE/INSERT/DELETE。"""
         data_source = self._registry.resolve(data_source)
@@ -78,6 +79,7 @@ class DmlService:
                     error=f"预计影响 {est} 行 > 上限 {cap}",
                     dry_run=True,
                     purpose=purpose,
+                    operator=operator,
                 )
                 raise SafetyError(
                     f"预计影响 {est} 行 > 上限 {cap}，已拒绝执行"
@@ -107,6 +109,7 @@ class DmlService:
                 status="ok",
                 dry_run=False,
                 purpose=purpose,
+                operator=operator,
             )
             sqs.record_if_slow(
                 jndi=data_source, sql=sql, duration_ms=duration,
@@ -133,6 +136,7 @@ class DmlService:
                 error=str(exc),
                 dry_run=dry_run,
                 purpose=purpose,
+                operator=operator,
             )
             raise
         finally:
@@ -169,6 +173,7 @@ class DmlService:
         data_source: str | None = None,
         dry_run: bool = True,
         purpose: str | None = None,
+        operator: str | None = None,
     ) -> dict[str, Any]:
         """执行 DDL（CREATE/ALTER/DROP）或 PL/SQL 匿名块。"""
         data_source = self._registry.resolve(data_source)
@@ -222,6 +227,7 @@ class DmlService:
                 status="ok",
                 dry_run=False,
                 purpose=purpose,
+                operator=operator,
             )
             return {
                 "dry_run": False,
@@ -244,6 +250,7 @@ class DmlService:
                 error=str(exc),
                 dry_run=dry_run,
                 purpose=purpose,
+                operator=operator,
             )
             raise
         finally:

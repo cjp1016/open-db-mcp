@@ -43,6 +43,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
         data_source: str | None = None,
         dry_run: bool = True,
         purpose: str | None = None,
+        operator: str | None = None,
     ) -> dict[str, Any]:
         """终止指定数据库会话（解锁被阻塞的表）。
 
@@ -55,6 +56,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             data_source: 数据源名称，不传则使用当前活跃数据源。
             dry_run: 默认 True（仅预检，不实际终止）。
             purpose: 执行此操作的目的说明（用于审计日志）。
+            operator: 执行此操作的人员信息（用于审计日志）。
 
         Returns:
             dry_run=True  → {dry_run: True, session_info: {...}}
@@ -66,6 +68,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             data_source=data_source,
             dry_run=dry_run,
             purpose=purpose,
+            operator=operator,
         )
 
     @mcp.tool()
@@ -95,6 +98,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
         data_source: str | None = None,
         dry_run: bool = True,
         purpose: str | None = None,
+        operator: str | None = None,
     ) -> dict[str, Any]:
         """扩容数据文件/表空间。
 
@@ -107,6 +111,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             data_source: 数据源名称，不传则使用当前活跃数据源。
             dry_run: 默认 True（仅预检，不实际扩容）。
             purpose: 执行此操作的目的说明（用于审计日志）。
+            operator: 执行此操作的人员信息（用于审计日志）。
 
         Returns:
             dry_run=True  → {dry_run: True, current_size_mb, target_size_mb}
@@ -118,4 +123,5 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             data_source=data_source,
             dry_run=dry_run,
             purpose=purpose,
+            operator=operator,
         )

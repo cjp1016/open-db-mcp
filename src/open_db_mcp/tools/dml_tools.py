@@ -21,6 +21,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
         dry_run: bool = True,
         max_affected_rows_override: int | None = None,
         purpose: str | None = None,
+        operator: str | None = None,
     ) -> dict[str, Any]:
         """执行受限的 UPDATE/INSERT/DELETE。
 
@@ -31,6 +32,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             dry_run: 默认 True（仅做影响行数预检，不实际执行）。
             max_affected_rows_override: 覆盖白名单中的 max_affected_rows。
             purpose: 执行此 DML 的目的说明（用于慢查询日志分析）。
+            operator: 执行此操作的人员信息（用于审计日志）。
 
         Returns:
             dry_run=True  → {dry_run: True, estimated_affected_rows: N}
@@ -43,6 +45,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             dry_run=dry_run,
             max_affected_rows_override=max_affected_rows_override,
             purpose=purpose,
+            operator=operator,
         )
 
     @mcp.tool()
@@ -93,6 +96,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
         data_source: str | None = None,
         dry_run: bool = True,
         purpose: str | None = None,
+        operator: str | None = None,
     ) -> dict[str, Any]:
         """执行 DDL（CREATE/ALTER/DROP）或 PL/SQL 匿名块。
 
@@ -104,6 +108,7 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             data_source: 数据源名称，不传则使用当前活跃数据源。
             dry_run: 默认 True（仅预检语法，不实际执行）。
             purpose: 执行此 DDL 的目的说明（用于审计日志分析）。
+            operator: 执行此操作的人员信息（用于审计日志）。
 
         Returns:
             dry_run=True  → {dry_run: True, dml, tables, syntax_ok}
@@ -114,4 +119,5 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             data_source=data_source,
             dry_run=dry_run,
             purpose=purpose,
+            operator=operator,
         )

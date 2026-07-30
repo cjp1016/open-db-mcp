@@ -53,6 +53,7 @@ class DbaService:
         data_source: str | None = None,
         dry_run: bool = True,
         purpose: str | None = None,
+        operator: str | None = None,
     ) -> dict[str, Any]:
         """终止指定会话（解锁）。
 
@@ -96,6 +97,7 @@ class DbaService:
                 error=None if result.get("success") else result.get("message"),
                 dry_run=False,
                 purpose=purpose,
+                operator=operator,
             )
 
             return {
@@ -140,6 +142,7 @@ class DbaService:
         data_source: str | None = None,
         dry_run: bool = True,
         purpose: str | None = None,
+        operator: str | None = None,
     ) -> dict[str, Any]:
         """扩容数据文件。
 
@@ -186,6 +189,7 @@ class DbaService:
                 error=None if result.get("success") else result.get("message"),
                 dry_run=False,
                 purpose=purpose,
+                operator=operator,
             )
 
             return {
