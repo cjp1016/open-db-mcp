@@ -43,6 +43,15 @@ class WhitelistRepository(BaseJsonRepository):
         log.info("持久化白名单 %s 到 %s", jndi, path)
         return wl
 
+    def save_full(self, *, jndi: str, rule: dict[str, Any]) -> dict[str, Any]:
+        """写入/更新完整分层格式的白名单条目（read/write/ddl），返回更新后的完整白名单 dict。"""
+        path = self._resolve_path("whitelist")
+        wl = self._load(path)
+        wl[jndi] = rule
+        self._write(path, wl)
+        log.info("持久化完整白名单 %s 到 %s", jndi, path)
+        return wl
+
     def delete(self, jndi: str) -> dict[str, Any]:
         """移除指定数据源的白名单条目，返回更新后的完整白名单 dict。"""
         path = self._resolve_path("whitelist")

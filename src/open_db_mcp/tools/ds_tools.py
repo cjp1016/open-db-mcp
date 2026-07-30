@@ -232,6 +232,103 @@ def register(mcp, registry: DataSourceRegistry, settings: Settings) -> None:
             "available": [j["jndi"] for j in registry.list()],
         }
 
+    # ------------------------------------------------------------------
+    # 白名单动态管理
+    # ------------------------------------------------------------------
+
+    @mcp.tool()
+    def set_whitelist(
+        jndi: str,
+        read_allowed_tables: list[str] | None = None,
+        read_forbidden_columns: list[str] | None = None,
+        read_max_rows: int | None = None,
+        write_allowed_tables: list[str] | None = None,
+        write_forbidden_columns: list[str] | None = None,
+        write_max_affected_rows: int | None = None,
+        write_require_where: bool | None = None,
+        ddl_allowed: bool | None = None,
+        ddl_allowed_tables: list[str] | None = None,
+        persist: bool = False,
+    ) -> dict[str, Any]:
+        """为数据源设置白名单规则（立即生效，无需重启）。
+
+        支持分层配置 read/write/ddl 三层权限。未传的字段使用默认值。
+        典型用法：set_whitelist(jndi="LOCAL_MYSQL", read_allowed_tables=["*"],
+        write_allowed_tables=["*"], ddl_allowed=True)
+
+        Args:
+            jndi: 数据源名称。
+            read_allowed_tables: 允许读取的表（如 ["devai.*", "test_db.*"]），默认 ["*"]。
+            read_forbidden_columns: 禁止读取的列名列表。
+            read_max_rows: 读操作最大返回行数，默认 10000。
+            write_allowed_tables: 允许写入的表，默认与 read_allowed_tables 相同。
+            write_forbidden_columns: 禁止写入的列名列表。
+            write_max_affected_rows: DML 单次最大影响行数，默认 10000。
+            write_require_where: UPDATE/DELETE 是否必须带 WHERE，默认 False。
+            ddl_allowed: 是否允许 DDL 操作，默认 False。
+            ddl_allowed_tables: DDL 允许的表列表（仅 ddl_allowed=True 时生效）。
+            persist: True 时写入 whitelist.json 持久化（重启后仍生效）。
+
+        Returns:
+            {jndi, rule: {...}, persisted: bool}
+        """
+        r_tables = read_allowed_tables if read_allowed_tables is not None else ["*"]
+        w_tables = write_allowed_tables if write_allowed_tables is not None else r_tables
+
+        rule: dict[str, Any] = {
+            "read": {
+                "allowed_tables": r_tables,
+                "forbidden_columns": read_forbidden_columns or [],
+                "max_rows": read_max_rows if read_max_rows is not None else 10000,
+            },
+            "write": {
+                "allowed_tables": w_tables,
+                "forbidden_columns": write_forbidden_columns or [],
+                "max_affected_rows": write_max_affected_rows if write_max_affected_rows is not None else 10000,
+                "require_where": write_require_where if write_require_where is not None else False,
+            },
+            "ddl": {
+                "allowed": ddl_allowed if ddl_allowed is not None else False,
+                "allowed_tables": ddl_allowed_tables or [],
+            },
+        }
+
+        # 立即生效：写入 registry 内存覆盖层
+        registry.set_whitelist_for(jndi, rule)
+
+        persisted = False
+        if persist:
+            updated_wl = wl_repo.save_full(jndi=jndi, rule=rule)
+            registry.set_whitelist_base(updated_wl)
+            persisted = True
+
+        return {
+            "jndi": jndi,
+            "rule": rule,
+            "persisted": persisted,
+        }
+
+    @mcp.tool()
+    def get_whitelist(data_source: str | None = None) -> dict[str, Any]:
+        """查看数据源当前生效的白名单规则。
+
+        Args:
+            data_source: 数据源名称，不传则使用当前活跃数据源。
+
+        Returns:
+            {jndi, rule: {read, write, ddl}} 或 {jndi, rule: null}（无配置）
+        """
+        jndi = registry.resolve(data_source)
+        cfg = registry.get_whitelist()
+        rule_obj = cfg.get(jndi)
+        if rule_obj is None:
+            return {"jndi": jndi, "rule": None}
+        from ..safety.whitelist import whitelist_to_dict
+        return {
+            "jndi": jndi,
+            "rule": whitelist_to_dict({jndi: rule_obj})[jndi],
+        }
+
 
 def _persist_datasource(
     *,
